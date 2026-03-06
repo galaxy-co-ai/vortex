@@ -274,22 +274,22 @@ function LayerPanel({
               layers[key] ? color : "bg-muted"
             )}
           />
-          <div className="text-left">
-            <span className="text-xs font-medium block">{label}</span>
+          <div className="flex-1 text-left min-w-0">
+            <span className="text-xs font-medium block truncate">{label}</span>
             <span className="text-[10px] text-muted-foreground">
               {description}
             </span>
           </div>
           <span
             className={cn(
-              "ml-auto w-8 h-4 rounded-full transition-colors relative",
+              "shrink-0 w-9 h-5 rounded-full transition-colors relative inline-flex items-center",
               layers[key] ? "bg-primary" : "bg-border"
             )}
           >
             <span
               className={cn(
-                "absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform",
-                layers[key] ? "translate-x-4" : "translate-x-0.5"
+                "absolute w-3.5 h-3.5 rounded-full bg-white transition-transform",
+                layers[key] ? "translate-x-[18px]" : "translate-x-[3px]"
               )}
             />
           </span>
