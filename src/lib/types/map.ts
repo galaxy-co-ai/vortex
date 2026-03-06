@@ -13,6 +13,21 @@ export interface LayerVisibility {
   reports: boolean;
 }
 
+export interface TimelapseState {
+  enabled: boolean;
+  frames: string[];
+  currentIndex: number;
+  playing: boolean;
+  speed: number; // multiplier: 0.5, 1, 2
+}
+
+export interface DataFreshness {
+  radar: Date | null;
+  alerts: Date | null;
+  outlooks: Date | null;
+  reports: Date | null;
+}
+
 export const DEFAULT_VIEW_STATE: MapViewState = {
   longitude: -97.4867,
   latitude: 35.3395,
@@ -26,4 +41,12 @@ export const DEFAULT_LAYER_VISIBILITY: LayerVisibility = {
   warnings: true,
   outlooks: true,
   reports: true,
+};
+
+export const DEFAULT_TIMELAPSE: TimelapseState = {
+  enabled: false,
+  frames: [],
+  currentIndex: 0,
+  playing: false,
+  speed: 1,
 };

@@ -1,13 +1,25 @@
 "use client";
 
+import { useMemo } from "react";
 import { Source, Layer } from "react-map-gl/maplibre";
 import { useMap } from "@/lib/context/map-context";
-
-const RADAR_TILE_URL =
-  "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png";
+import { frameToTileUrl, frameTileUrlLive } from "@/lib/utils/timelapse";
 
 export function RadarLayer() {
-  const { layers, radarOpacity } = useMap();
+  const { layers, radarOpacity, timelapse, updateFreshness } = useMap();
+
+  const tileUrl = useMemo(() => {
+    if (timelapse.enabled && timelapse.frames.length > 0) {
+      return frameToTileUrl(timelapse.frames[timelapse.currentIndex]);
+    }
+    updateFreshness("radar");
+    return frameTileUrlLive();
+  }, [
+    timelapse.enabled,
+    timelapse.frames,
+    timelapse.currentIndex,
+    updateFreshness,
+  ]);
 
   if (!layers.radar) return null;
 
@@ -15,7 +27,7 @@ export function RadarLayer() {
     <Source
       id="nexrad-radar"
       type="raster"
-      tiles={[`${RADAR_TILE_URL}?_t=${Math.floor(Date.now() / 300000)}`]}
+      tiles={[tileUrl]}
       tileSize={256}
       attribution='<a href="https://mesonet.agron.iastate.edu/" target="_blank">Iowa Environmental Mesonet</a>'
     >
@@ -24,7 +36,7 @@ export function RadarLayer() {
         type="raster"
         paint={{
           "raster-opacity": radarOpacity,
-          "raster-fade-duration": 300,
+          "raster-fade-duration": timelapse.playing ? 0 : 300,
         }}
       />
     </Source>

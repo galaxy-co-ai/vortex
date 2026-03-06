@@ -91,9 +91,18 @@
   --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
   --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
 
+  /* ── Shell Layout ───────────────────────────────────── */
+  --shell-header-h: 48px;
+  --shell-sidebar-w: 340px;
+  --shell-sidebar-collapsed-w: 0px;
+  --shell-panel-w: 400px;
+  --shell-bottom-h: 56px;
+
   /* ── Z-Index Layers ─────────────────────────────────── */
   --z-map: 0;
   --z-map-controls: 10;
+  --z-sidebar: 15;
+  --z-bottom-bar: 15;
   --z-panel: 20;
   --z-header: 30;
   --z-modal: 40;

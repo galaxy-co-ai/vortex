@@ -4,8 +4,8 @@ import { dnToRiskLevel, riskLabel } from "@/lib/utils";
 const SPC_BASE =
   "https://mapservices.weather.noaa.gov/vector/rest/services/outlooks/SPC_wx_outlks/MapServer";
 
-// Layer 0 = Day 1 Categorical Outlook
-const DAY1_CATEGORICAL = 0;
+// Layer 1 = Day 1 Categorical Outlook (Layer 0 is deprecated/empty)
+const DAY1_CATEGORICAL = 1;
 
 export async function fetchDay1Outlook(): Promise<SPCOutlookCollection> {
   const url = new URL(`${SPC_BASE}/${DAY1_CATEGORICAL}/query`);

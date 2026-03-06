@@ -30,13 +30,17 @@ export async function fetchActiveAlerts(): Promise<NWSAlertCollection> {
     throw new Error(`NWS API error: ${res.status} ${res.statusText}`);
   }
 
-  const data = (await res.json()) as NWSAlertCollection;
+  const raw = await res.json();
 
-  // Filter to severe weather events with geometry
-  data.features = data.features.filter(
-    (f) =>
+  // Build a clean GeoJSON FeatureCollection — strip NWS JSON-LD fields
+  // (@context, title, updated) that can confuse MapLibre's GeoJSON parser
+  const features = (raw.features || []).filter(
+    (f: { properties: { event: string }; geometry: unknown }) =>
       SEVERE_EVENTS.includes(f.properties.event) && f.geometry !== null
   );
 
-  return data;
+  return {
+    type: "FeatureCollection",
+    features,
+  };
 }

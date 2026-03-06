@@ -1,52 +1,44 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { Source, Layer, useMap as useMapGL } from "react-map-gl/maplibre";
 import type maplibregl from "maplibre-gl";
 import { useMap } from "@/lib/context/map-context";
-import type { NWSAlertCollection } from "@/lib/types/weather";
-
-const POLL_INTERVAL = 30_000;
 
 export function WarningLayer() {
-  const { layers, setSelectedAlert } = useMap();
+  const { layers, alerts, setSelectedAlert } = useMap();
   const { current: map } = useMapGL();
-  const [alertData, setAlertData] = useState<NWSAlertCollection | null>(null);
 
-  useEffect(() => {
-    if (!layers.warnings) return;
-
-    const fetchAlerts = async () => {
-      try {
-        const res = await fetch("/api/alerts");
-        if (res.ok) {
-          const data = await res.json();
-          setAlertData(data);
-        }
-      } catch (e) {
-        console.error("Failed to fetch alerts:", e);
-      }
+  // Build a clean GeoJSON FeatureCollection from shared alert data
+  const geojson = useMemo(() => {
+    if (!alerts.length) return null;
+    return {
+      type: "FeatureCollection" as const,
+      features: alerts
+        .filter((f) => f.geometry !== null)
+        .map((f) => ({
+          type: "Feature" as const,
+          id: f.properties.id,
+          properties: { id: f.properties.id, event: f.properties.event },
+          geometry: f.geometry!,
+        })),
     };
-
-    fetchAlerts();
-    const interval = setInterval(fetchAlerts, POLL_INTERVAL);
-    return () => clearInterval(interval);
-  }, [layers.warnings]);
+  }, [alerts]);
 
   const handleClick = useCallback(
     (e: maplibregl.MapLayerMouseEvent) => {
       const feature = e.features?.[0];
-      if (!feature || !alertData) return;
+      if (!feature) return;
 
-      const alert = alertData.features.find(
+      const alert = alerts.find(
         (f) => f.properties.id === feature.properties?.id
       );
       if (alert) setSelectedAlert(alert);
     },
-    [alertData, setSelectedAlert]
+    [alerts, setSelectedAlert]
   );
 
-  // Set cursor on hover
+  // Cursor + click handlers
   useEffect(() => {
     if (!map) return;
     const mapInstance = map.getMap();
@@ -68,23 +60,31 @@ export function WarningLayer() {
     layerIds.forEach((id) => {
       mapInstance.on("mouseenter", id, onEnter);
       mapInstance.on("mouseleave", id, onLeave);
-      mapInstance.on("click", id, handleClick as unknown as maplibregl.Listener);
+      mapInstance.on(
+        "click",
+        id,
+        handleClick as unknown as maplibregl.Listener
+      );
     });
 
     return () => {
       layerIds.forEach((id) => {
         mapInstance.off("mouseenter", id, onEnter);
         mapInstance.off("mouseleave", id, onLeave);
-        mapInstance.off("click", id, handleClick as unknown as maplibregl.Listener);
+        mapInstance.off(
+          "click",
+          id,
+          handleClick as unknown as maplibregl.Listener
+        );
       });
     };
   }, [map, handleClick]);
 
-  if (!layers.warnings || !alertData) return null;
+  if (!layers.warnings || !geojson) return null;
 
   return (
-    <Source id="nws-alerts" type="geojson" data={alertData as unknown as GeoJSON.FeatureCollection}>
-      {/* Tornado Warning — red fill + pulsing border */}
+    <Source id="nws-alerts" type="geojson" data={geojson}>
+      {/* Tornado Warning — red fill + bold border */}
       <Layer
         id="warnings-tornado-fill"
         type="fill"
@@ -163,7 +163,7 @@ export function WarningLayer() {
           ["==", ["get", "event"], "Severe Thunderstorm Watch"],
         ]}
         paint={{
-          "line-color": "#990033",
+          "line-color": "#ffff00",
           "line-width": 2,
           "line-dasharray": [4, 3],
         }}
