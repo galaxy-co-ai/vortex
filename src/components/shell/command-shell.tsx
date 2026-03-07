@@ -7,6 +7,7 @@ import { LeftSidebar } from "./left-sidebar";
 import { RightPanel } from "./right-panel";
 import { BottomBar } from "./bottom-bar";
 import { MapView } from "@/components/map/map-view";
+import { ThreatBanner } from "./threat-banner";
 
 export function CommandShell() {
   return (
@@ -28,6 +29,7 @@ function MapCenter() {
     <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
       <div className="flex-1 min-h-0 relative">
         <MapView />
+        <ThreatBanner />
       </div>
       <BottomBar />
     </div>

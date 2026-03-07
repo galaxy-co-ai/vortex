@@ -30,6 +30,7 @@ import {
 } from "@/lib/types/map";
 import { sortBySeverity } from "@/lib/utils";
 import { generateFrameTimestamps } from "@/lib/utils/timelapse";
+import { findNearestThreats, type UserLocation, type ThreatProximity } from "@/lib/utils/geo";
 
 export interface AlertStats {
   tornadoWarnings: number;
@@ -65,6 +66,12 @@ interface MapContextValue {
 
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+
+  // Threat proximity
+  userLocation: UserLocation | null;
+  nearestThreats: ThreatProximity[];
+  audioEnabled: boolean;
+  setAudioEnabled: (enabled: boolean) => void;
 
   timelapse: TimelapseState;
   toggleTimelapse: () => void;
@@ -115,6 +122,13 @@ export function MapProvider({ children }: { children: ReactNode }) {
   const [tornadoProbData, setTornadoProbData] = useState<TornadoProbCollection | null>(null);
   const [mesoscaleData, setMesoscaleData] = useState<MesoscaleDiscussionCollection | null>(null);
   const [reportData, setReportData] = useState<StormReportCollection | null>(null);
+
+  // Threat proximity
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [nearestThreats, setNearestThreats] = useState<ThreatProximity[]>([]);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const prevTorCountRef = useRef(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Timelapse
   const [timelapse, setTimelapse] = useState<TimelapseState>(DEFAULT_TIMELAPSE);
@@ -217,6 +231,40 @@ export function MapProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // ── Geolocation ──────────────────────────────────────────
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setUserLocation({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+      },
+      () => { /* silently degrade — proximity features just won't work */ },
+      { enableHighAccuracy: false, maximumAge: 60_000, timeout: 10_000 }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
+
+  // ── Threat proximity calculation ────────────────────────
+  useEffect(() => {
+    if (!userLocation || alerts.length === 0) {
+      setNearestThreats([]);
+      return;
+    }
+    const threats = findNearestThreats(userLocation, alerts, 100);
+    setNearestThreats(threats);
+
+    // Audio alarm: new tornado warning appeared
+    const torCount = alerts.filter((a) => a.properties.event === "Tornado Warning").length;
+    if (audioEnabled && torCount > prevTorCountRef.current && prevTorCountRef.current > 0) {
+      playAlarm();
+    }
+    prevTorCountRef.current = torCount;
+  }, [userLocation, alerts, audioEnabled]);
+
   // ── Timelapse playback ─────────────────────────────────
   useEffect(() => {
     if (playIntervalRef.current) {
@@ -236,6 +284,35 @@ export function MapProvider({ children }: { children: ReactNode }) {
       if (playIntervalRef.current) clearInterval(playIntervalRef.current);
     };
   }, [timelapse.playing, timelapse.speed, timelapse.frames.length]);
+
+  // ── Audio alarm ──────────────────────────────────────────
+  const playAlarm = useCallback(() => {
+    try {
+      if (!audioRef.current) {
+        const ctx = new AudioContext();
+        // Generate a two-tone alarm similar to NWS EAS
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc1.frequency.value = 853;
+        osc2.frequency.value = 960;
+        gain.gain.value = 0.3;
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+        osc1.start();
+        osc2.start();
+        // 1.5 second burst
+        setTimeout(() => {
+          osc1.stop();
+          osc2.stop();
+          ctx.close();
+        }, 1500);
+      }
+    } catch {
+      // AudioContext may fail if user hasn't interacted yet
+    }
+  }, []);
 
   // ── Stable callbacks ───────────────────────────────────
   const toggleLayer = useCallback((layer: keyof LayerVisibility) => {
@@ -278,6 +355,7 @@ export function MapProvider({ children }: { children: ReactNode }) {
       alerts, alertStats, alertsLoading, outlookData, tornadoProbData, mesoscaleData, reportData,
       selectedAlert, setSelectedAlert, selectedReport, setSelectedReport,
       sidebarOpen, setSidebarOpen,
+      userLocation, nearestThreats, audioEnabled, setAudioEnabled,
       timelapse, toggleTimelapse, togglePlay, setFrame, setTimelapseSpeed,
       dataFreshness,
     }),
@@ -287,6 +365,7 @@ export function MapProvider({ children }: { children: ReactNode }) {
       alerts, alertStats, alertsLoading, outlookData, tornadoProbData, mesoscaleData, reportData,
       selectedAlert, selectedReport,
       sidebarOpen,
+      userLocation, nearestThreats, audioEnabled,
       timelapse, toggleTimelapse, togglePlay, setFrame, setTimelapseSpeed,
       dataFreshness,
     ]
