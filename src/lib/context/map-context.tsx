@@ -7,12 +7,15 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useMemo,
   type ReactNode,
 } from "react";
 import type {
   NWSAlertFeature,
   NWSAlertCollection,
   StormReportFeature,
+  StormReportCollection,
+  SPCOutlookCollection,
 } from "@/lib/types/weather";
 import {
   DEFAULT_VIEW_STATE,
@@ -26,7 +29,7 @@ import {
 import { sortBySeverity } from "@/lib/utils";
 import { generateFrameTimestamps } from "@/lib/utils/timelapse";
 
-interface AlertStats {
+export interface AlertStats {
   tornadoWarnings: number;
   severeWarnings: number;
   watches: number;
@@ -35,54 +38,46 @@ interface AlertStats {
 }
 
 interface MapContextValue {
-  // View
   viewState: MapViewState;
   setViewState: (vs: MapViewState) => void;
   flyTo: (longitude: number, latitude: number, zoom?: number) => void;
 
-  // Layers
   layers: LayerVisibility;
   toggleLayer: (layer: keyof LayerVisibility) => void;
   radarOpacity: number;
   setRadarOpacity: (opacity: number) => void;
 
-  // Shared alert data (single fetch, used by sidebar + warning layer)
+  // Centralized data (single fetch per resource)
   alerts: NWSAlertFeature[];
   alertStats: AlertStats;
   alertsLoading: boolean;
+  outlookData: SPCOutlookCollection | null;
+  reportData: StormReportCollection | null;
 
-  // Selection
   selectedAlert: NWSAlertFeature | null;
   setSelectedAlert: (alert: NWSAlertFeature | null) => void;
   selectedReport: StormReportFeature | null;
   setSelectedReport: (report: StormReportFeature | null) => void;
 
-  // Shell state
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 
-  // Timelapse
   timelapse: TimelapseState;
   toggleTimelapse: () => void;
   togglePlay: () => void;
   setFrame: (index: number) => void;
   setTimelapseSpeed: (speed: number) => void;
 
-  // Data freshness
   dataFreshness: DataFreshness;
-  updateFreshness: (key: keyof DataFreshness) => void;
 }
 
 const MapContext = createContext<MapContextValue | null>(null);
-
-const ALERT_POLL_INTERVAL = 30_000;
 
 function computeAlertStats(alerts: NWSAlertFeature[]): AlertStats {
   let tornadoWarnings = 0;
   let severeWarnings = 0;
   let watches = 0;
   let floodWarnings = 0;
-
   for (const a of alerts) {
     const e = a.properties.event;
     if (e === "Tornado Warning") tornadoWarnings++;
@@ -92,39 +87,28 @@ function computeAlertStats(alerts: NWSAlertFeature[]): AlertStats {
     else if (e === "Flash Flood Warning" || e === "Flood Warning")
       floodWarnings++;
   }
-
-  return {
-    tornadoWarnings,
-    severeWarnings,
-    watches,
-    floodWarnings,
-    total: alerts.length,
-  };
+  return { tornadoWarnings, severeWarnings, watches, floodWarnings, total: alerts.length };
 }
 
 export function MapProvider({ children }: { children: ReactNode }) {
+  // View
   const [viewState, setViewState] = useState<MapViewState>(DEFAULT_VIEW_STATE);
-  const [layers, setLayers] = useState<LayerVisibility>(
-    DEFAULT_LAYER_VISIBILITY
-  );
+  const [layers, setLayers] = useState<LayerVisibility>(DEFAULT_LAYER_VISIBILITY);
   const [radarOpacity, setRadarOpacity] = useState(0.7);
-  const [selectedAlert, setSelectedAlert] = useState<NWSAlertFeature | null>(
-    null
-  );
-  const [selectedReport, setSelectedReport] =
-    useState<StormReportFeature | null>(null);
+
+  // Selection
+  const [selectedAlert, setSelectedAlert] = useState<NWSAlertFeature | null>(null);
+  const [selectedReport, setSelectedReport] = useState<StormReportFeature | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Shared alert data — single fetch, used by sidebar + warning layer + stats
+  // Centralized data
   const [alerts, setAlerts] = useState<NWSAlertFeature[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertStats, setAlertStats] = useState<AlertStats>({
-    tornadoWarnings: 0,
-    severeWarnings: 0,
-    watches: 0,
-    floodWarnings: 0,
-    total: 0,
+    tornadoWarnings: 0, severeWarnings: 0, watches: 0, floodWarnings: 0, total: 0,
   });
+  const [outlookData, setOutlookData] = useState<SPCOutlookCollection | null>(null);
+  const [reportData, setReportData] = useState<StormReportCollection | null>(null);
 
   // Timelapse
   const [timelapse, setTimelapse] = useState<TimelapseState>(DEFAULT_TIMELAPSE);
@@ -132,13 +116,10 @@ export function MapProvider({ children }: { children: ReactNode }) {
 
   // Data freshness
   const [dataFreshness, setDataFreshness] = useState<DataFreshness>({
-    radar: null,
-    alerts: null,
-    outlooks: null,
-    reports: null,
+    radar: null, alerts: null, outlooks: null, reports: null,
   });
 
-  // Centralized alert fetching
+  // ── Centralized polling ────────────────────────────────
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
@@ -148,7 +129,7 @@ export function MapProvider({ children }: { children: ReactNode }) {
           const sorted = sortBySeverity(data.features);
           setAlerts(sorted);
           setAlertStats(computeAlertStats(sorted));
-          setDataFreshness((prev) => ({ ...prev, alerts: new Date() }));
+          setDataFreshness((p) => ({ ...p, alerts: new Date() }));
         }
       } catch (e) {
         console.error("Failed to fetch alerts:", e);
@@ -157,61 +138,83 @@ export function MapProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    const fetchOutlooks = async () => {
+      try {
+        const res = await fetch("/api/outlooks");
+        if (res.ok) {
+          const data = await res.json();
+          setOutlookData(data);
+          setDataFreshness((p) => ({ ...p, outlooks: new Date() }));
+        }
+      } catch (e) {
+        console.error("Failed to fetch outlooks:", e);
+      }
+    };
+
+    const fetchReports = async () => {
+      try {
+        const res = await fetch("/api/reports");
+        if (res.ok) {
+          const data = await res.json();
+          setReportData(data);
+          setDataFreshness((p) => ({ ...p, reports: new Date() }));
+        }
+      } catch (e) {
+        console.error("Failed to fetch reports:", e);
+      }
+    };
+
+    // Initial fetch all
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, ALERT_POLL_INTERVAL);
-    return () => clearInterval(interval);
+    fetchOutlooks();
+    fetchReports();
+
+    // Staggered intervals
+    const alertInterval = setInterval(fetchAlerts, 30_000);
+    const outlookInterval = setInterval(fetchOutlooks, 900_000);
+    const reportInterval = setInterval(fetchReports, 300_000);
+
+    return () => {
+      clearInterval(alertInterval);
+      clearInterval(outlookInterval);
+      clearInterval(reportInterval);
+    };
   }, []);
 
-  // Timelapse playback
+  // ── Timelapse playback ─────────────────────────────────
   useEffect(() => {
     if (playIntervalRef.current) {
       clearInterval(playIntervalRef.current);
       playIntervalRef.current = null;
     }
-
     if (timelapse.playing && timelapse.frames.length > 0) {
-      const baseInterval = 300; // ms per frame at 1x
-      const interval = baseInterval / timelapse.speed;
-
+      const ms = Math.round(300 / timelapse.speed);
       playIntervalRef.current = setInterval(() => {
         setTimelapse((prev) => ({
           ...prev,
           currentIndex: (prev.currentIndex + 1) % prev.frames.length,
         }));
-      }, interval);
+      }, ms);
     }
-
     return () => {
       if (playIntervalRef.current) clearInterval(playIntervalRef.current);
     };
   }, [timelapse.playing, timelapse.speed, timelapse.frames.length]);
 
+  // ── Stable callbacks ───────────────────────────────────
   const toggleLayer = useCallback((layer: keyof LayerVisibility) => {
     setLayers((prev) => ({ ...prev, [layer]: !prev[layer] }));
   }, []);
 
-  const flyTo = useCallback(
-    (longitude: number, latitude: number, zoom = 10) => {
-      setViewState((prev) => ({ ...prev, longitude, latitude, zoom }));
-    },
-    []
-  );
+  const flyTo = useCallback((longitude: number, latitude: number, zoom = 10) => {
+    setViewState((prev) => ({ ...prev, longitude, latitude, zoom }));
+  }, []);
 
   const toggleTimelapse = useCallback(() => {
     setTimelapse((prev) => {
-      if (prev.enabled) {
-        // Disable: stop playing, clear frames
-        return { ...DEFAULT_TIMELAPSE };
-      }
-      // Enable: generate frames
+      if (prev.enabled) return { ...DEFAULT_TIMELAPSE };
       const frames = generateFrameTimestamps(20, 5);
-      return {
-        enabled: true,
-        frames,
-        currentIndex: frames.length - 1,
-        playing: false,
-        speed: 1,
-      };
+      return { enabled: true, frames, currentIndex: frames.length - 1, playing: false, speed: 1 };
     });
   }, []);
 
@@ -231,38 +234,30 @@ export function MapProvider({ children }: { children: ReactNode }) {
     setTimelapse((prev) => ({ ...prev, speed }));
   }, []);
 
-  const updateFreshness = useCallback((key: keyof DataFreshness) => {
-    setDataFreshness((prev) => ({ ...prev, [key]: new Date() }));
-  }, []);
+  // ── Memoized context value ─────────────────────────────
+  const value = useMemo<MapContextValue>(
+    () => ({
+      viewState, setViewState, flyTo,
+      layers, toggleLayer, radarOpacity, setRadarOpacity,
+      alerts, alertStats, alertsLoading, outlookData, reportData,
+      selectedAlert, setSelectedAlert, selectedReport, setSelectedReport,
+      sidebarOpen, setSidebarOpen,
+      timelapse, toggleTimelapse, togglePlay, setFrame, setTimelapseSpeed,
+      dataFreshness,
+    }),
+    [
+      viewState, flyTo,
+      layers, toggleLayer, radarOpacity,
+      alerts, alertStats, alertsLoading, outlookData, reportData,
+      selectedAlert, selectedReport,
+      sidebarOpen,
+      timelapse, toggleTimelapse, togglePlay, setFrame, setTimelapseSpeed,
+      dataFreshness,
+    ]
+  );
 
   return (
-    <MapContext.Provider
-      value={{
-        viewState,
-        setViewState,
-        flyTo,
-        layers,
-        toggleLayer,
-        radarOpacity,
-        setRadarOpacity,
-        alerts,
-        alertStats,
-        alertsLoading,
-        selectedAlert,
-        setSelectedAlert,
-        selectedReport,
-        setSelectedReport,
-        sidebarOpen,
-        setSidebarOpen,
-        timelapse,
-        toggleTimelapse,
-        togglePlay,
-        setFrame,
-        setTimelapseSpeed,
-        dataFreshness,
-        updateFreshness,
-      }}
-    >
+    <MapContext.Provider value={value}>
       {children}
     </MapContext.Provider>
   );

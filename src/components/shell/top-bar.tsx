@@ -1,21 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { useMap } from "@/lib/context/map-context";
 import { cn } from "@/lib/utils";
 
 export function TopBar() {
   const { alertStats, sidebarOpen, setSidebarOpen } = useMap();
-  const [time, setTime] = useState(new Date());
-
-  useEffect(() => {
-    const interval = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <header
-      className="glass-panel flex items-center justify-between px-3 h-[var(--shell-header-h)] shrink-0 border-b border-border"
+      className="flex items-center justify-between px-3 h-[var(--shell-header-h)] shrink-0 border-b border-border bg-background"
       style={{ zIndex: "var(--z-header)" }}
     >
       {/* Left — Logo + sidebar toggle */}
@@ -25,27 +19,8 @@ export function TopBar() {
           className="w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           aria-label="Toggle sidebar"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            {sidebarOpen ? (
-              <>
-                <path d="M3 6h18M3 12h12M3 18h18" />
-              </>
-            ) : (
-              <>
-                <path d="M3 6h18M3 12h18M3 18h18" />
-              </>
-            )}
-          </svg>
+          <MenuIcon collapsed={!sidebarOpen} />
         </button>
-
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
           <h1 className="font-mono font-bold text-sm tracking-widest text-primary">
@@ -94,20 +69,7 @@ export function TopBar() {
 
       {/* Right — Time + live */}
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <span className="hidden sm:inline font-mono">
-          {time.toLocaleDateString("en-US", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-          })}
-        </span>
-        <span className="font-mono text-[10px] tabular-nums">
-          {time.toLocaleTimeString("en-US", {
-            hour: "numeric",
-            minute: "2-digit",
-            second: "2-digit",
-          })}
-        </span>
+        <LiveClock />
         <div className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
           <span className="font-mono text-[10px] text-green-500">LIVE</span>
@@ -117,7 +79,36 @@ export function TopBar() {
   );
 }
 
-function StatChip({
+// Isolated clock — re-renders every second without touching parent
+const LiveClock = memo(function LiveClock() {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <>
+      <span className="hidden sm:inline font-mono">
+        {time.toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        })}
+      </span>
+      <span className="font-mono text-[10px] tabular-nums">
+        {time.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit",
+        })}
+      </span>
+    </>
+  );
+});
+
+const StatChip = memo(function StatChip({
   label,
   count,
   className,
@@ -140,4 +131,24 @@ function StatChip({
       <span>{count}</span>
     </div>
   );
-}
+});
+
+const MenuIcon = memo(function MenuIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    >
+      {collapsed ? (
+        <path d="M3 6h18M3 12h18M3 18h18" />
+      ) : (
+        <path d="M3 6h18M3 12h12M3 18h18" />
+      )}
+    </svg>
+  );
+});

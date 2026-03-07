@@ -1,15 +1,29 @@
 "use client";
 
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useRef } from "react";
 import { Source, Layer, useMap as useMapGL } from "react-map-gl/maplibre";
 import type maplibregl from "maplibre-gl";
 import { useMap } from "@/lib/context/map-context";
 
+const LAYER_IDS = [
+  "warnings-tornado-fill",
+  "warnings-severe-fill",
+  "warnings-flood-fill",
+  "warnings-watch-line",
+];
+
 export function WarningLayer() {
   const { layers, alerts, setSelectedAlert } = useMap();
   const { current: map } = useMapGL();
+  const alertsRef = useRef(alerts);
+  alertsRef.current = alerts;
 
-  // Build a clean GeoJSON FeatureCollection from shared alert data
+  // Build clean GeoJSON — only rebuild when alert IDs change
+  const alertIds = useMemo(
+    () => alerts.map((a) => a.properties.id).join(","),
+    [alerts]
+  );
+
   const geojson = useMemo(() => {
     if (!alerts.length) return null;
     return {
@@ -23,59 +37,41 @@ export function WarningLayer() {
           geometry: f.geometry!,
         })),
     };
-  }, [alerts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alertIds]);
 
+  // Stable click handler — uses ref to avoid event listener churn
   const handleClick = useCallback(
     (e: maplibregl.MapLayerMouseEvent) => {
       const feature = e.features?.[0];
       if (!feature) return;
-
-      const alert = alerts.find(
+      const alert = alertsRef.current.find(
         (f) => f.properties.id === feature.properties?.id
       );
       if (alert) setSelectedAlert(alert);
     },
-    [alerts, setSelectedAlert]
+    [setSelectedAlert]
   );
 
-  // Cursor + click handlers
+  // Event listeners — stable deps, no churn
   useEffect(() => {
     if (!map) return;
-    const mapInstance = map.getMap();
+    const m = map.getMap();
 
-    const layerIds = [
-      "warnings-tornado-fill",
-      "warnings-severe-fill",
-      "warnings-flood-fill",
-      "warnings-watch-line",
-    ];
+    const onEnter = () => { m.getCanvas().style.cursor = "pointer"; };
+    const onLeave = () => { m.getCanvas().style.cursor = ""; };
 
-    const onEnter = () => {
-      mapInstance.getCanvas().style.cursor = "pointer";
-    };
-    const onLeave = () => {
-      mapInstance.getCanvas().style.cursor = "";
-    };
-
-    layerIds.forEach((id) => {
-      mapInstance.on("mouseenter", id, onEnter);
-      mapInstance.on("mouseleave", id, onLeave);
-      mapInstance.on(
-        "click",
-        id,
-        handleClick as unknown as maplibregl.Listener
-      );
+    LAYER_IDS.forEach((id) => {
+      m.on("mouseenter", id, onEnter);
+      m.on("mouseleave", id, onLeave);
+      m.on("click", id, handleClick as unknown as maplibregl.Listener);
     });
 
     return () => {
-      layerIds.forEach((id) => {
-        mapInstance.off("mouseenter", id, onEnter);
-        mapInstance.off("mouseleave", id, onLeave);
-        mapInstance.off(
-          "click",
-          id,
-          handleClick as unknown as maplibregl.Listener
-        );
+      LAYER_IDS.forEach((id) => {
+        m.off("mouseenter", id, onEnter);
+        m.off("mouseleave", id, onLeave);
+        m.off("click", id, handleClick as unknown as maplibregl.Listener);
       });
     };
   }, [map, handleClick]);
@@ -89,20 +85,13 @@ export function WarningLayer() {
         id="warnings-tornado-fill"
         type="fill"
         filter={["==", ["get", "event"], "Tornado Warning"]}
-        paint={{
-          "fill-color": "#ff3333",
-          "fill-opacity": 0.25,
-        }}
+        paint={{ "fill-color": "#ff3333", "fill-opacity": 0.25 }}
       />
       <Layer
         id="warnings-tornado-border"
         type="line"
         filter={["==", ["get", "event"], "Tornado Warning"]}
-        paint={{
-          "line-color": "#ff3333",
-          "line-width": 3,
-          "line-opacity": 0.9,
-        }}
+        paint={{ "line-color": "#ff3333", "line-width": 3, "line-opacity": 0.9 }}
       />
 
       {/* Severe Thunderstorm Warning — orange */}
@@ -110,63 +99,35 @@ export function WarningLayer() {
         id="warnings-severe-fill"
         type="fill"
         filter={["==", ["get", "event"], "Severe Thunderstorm Warning"]}
-        paint={{
-          "fill-color": "#ff9900",
-          "fill-opacity": 0.2,
-        }}
+        paint={{ "fill-color": "#ff9900", "fill-opacity": 0.2 }}
       />
       <Layer
         id="warnings-severe-border"
         type="line"
         filter={["==", ["get", "event"], "Severe Thunderstorm Warning"]}
-        paint={{
-          "line-color": "#ff9900",
-          "line-width": 2,
-        }}
+        paint={{ "line-color": "#ff9900", "line-width": 2 }}
       />
 
-      {/* Flash Flood Warning — green */}
+      {/* Flash Flood / Flood Warning — green */}
       <Layer
         id="warnings-flood-fill"
         type="fill"
-        filter={[
-          "any",
-          ["==", ["get", "event"], "Flash Flood Warning"],
-          ["==", ["get", "event"], "Flood Warning"],
-        ]}
-        paint={{
-          "fill-color": "#33cc66",
-          "fill-opacity": 0.15,
-        }}
+        filter={["any", ["==", ["get", "event"], "Flash Flood Warning"], ["==", ["get", "event"], "Flood Warning"]]}
+        paint={{ "fill-color": "#33cc66", "fill-opacity": 0.15 }}
       />
       <Layer
         id="warnings-flood-border"
         type="line"
-        filter={[
-          "any",
-          ["==", ["get", "event"], "Flash Flood Warning"],
-          ["==", ["get", "event"], "Flood Warning"],
-        ]}
-        paint={{
-          "line-color": "#33cc66",
-          "line-width": 2,
-        }}
+        filter={["any", ["==", ["get", "event"], "Flash Flood Warning"], ["==", ["get", "event"], "Flood Warning"]]}
+        paint={{ "line-color": "#33cc66", "line-width": 2 }}
       />
 
-      {/* Watches — dashed outline, no fill */}
+      {/* Watches — dashed yellow */}
       <Layer
         id="warnings-watch-line"
         type="line"
-        filter={[
-          "any",
-          ["==", ["get", "event"], "Tornado Watch"],
-          ["==", ["get", "event"], "Severe Thunderstorm Watch"],
-        ]}
-        paint={{
-          "line-color": "#ffff00",
-          "line-width": 2,
-          "line-dasharray": [4, 3],
-        }}
+        filter={["any", ["==", ["get", "event"], "Tornado Watch"], ["==", ["get", "event"], "Severe Thunderstorm Watch"]]}
+        paint={{ "line-color": "#ffff00", "line-width": 2, "line-dasharray": [4, 3] }}
       />
     </Source>
   );

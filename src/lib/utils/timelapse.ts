@@ -1,9 +1,16 @@
 /**
- * IEM historical radar tiles use timestamps like: nexrad-n0q-{YYYYMMDDHHII}
- * Tiles are available at 5-minute intervals in UTC.
+ * IEM radar tile utilities.
+ *
+ * Products:
+ *   nexrad-n0b-900913 — Base Reflectivity (high-res ~0.25km)
+ *   nexrad-n0s-900913 — Storm-Relative Velocity
+ *
+ * Historical tiles use timestamps: nexrad-n0b-{YYYYMMDDHHII}
+ * Tiles available at 5-minute intervals in UTC.
  */
 
-const INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const INTERVAL_MS = 5 * 60 * 1000;
+const IEM_BASE = "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0";
 
 export function generateFrameTimestamps(
   frameCount = 20,
@@ -11,7 +18,6 @@ export function generateFrameTimestamps(
 ): string[] {
   const now = Date.now();
   const interval = intervalMinutes * 60 * 1000;
-  // Round down to nearest interval
   const latest = Math.floor(now / interval) * interval;
 
   const frames: string[] = [];
@@ -32,12 +38,19 @@ function formatTimestamp(date: Date): string {
 }
 
 export function frameToTileUrl(timestamp: string): string {
-  return `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-${timestamp}/{z}/{x}/{y}.png`;
+  return `${IEM_BASE}/nexrad-n0b-${timestamp}/{z}/{x}/{y}.png`;
 }
 
-export function frameTileUrlLive(): string {
+/** Live reflectivity tiles (high-res N0B) with cache bust */
+export function reflectivityTileUrl(): string {
   const cacheBust = Math.floor(Date.now() / INTERVAL_MS);
-  return `https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png?_t=${cacheBust}`;
+  return `${IEM_BASE}/nexrad-n0b-900913/{z}/{x}/{y}.png?_t=${cacheBust}`;
+}
+
+/** Storm-relative velocity tiles (N0S) with cache bust */
+export function velocityTileUrl(): string {
+  const cacheBust = Math.floor(Date.now() / INTERVAL_MS);
+  return `${IEM_BASE}/nexrad-n0s-900913/{z}/{x}/{y}.png?_t=${cacheBust}`;
 }
 
 export function formatFrameLabel(timestamp: string): string {

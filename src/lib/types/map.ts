@@ -8,6 +8,7 @@ export interface MapViewState {
 
 export interface LayerVisibility {
   radar: boolean;
+  velocity: boolean;
   warnings: boolean;
   outlooks: boolean;
   reports: boolean;
@@ -18,7 +19,7 @@ export interface TimelapseState {
   frames: string[];
   currentIndex: number;
   playing: boolean;
-  speed: number; // multiplier: 0.5, 1, 2
+  speed: number;
 }
 
 export interface DataFreshness {
@@ -38,6 +39,7 @@ export const DEFAULT_VIEW_STATE: MapViewState = {
 
 export const DEFAULT_LAYER_VISIBILITY: LayerVisibility = {
   radar: true,
+  velocity: false,
   warnings: true,
   outlooks: true,
   reports: true,

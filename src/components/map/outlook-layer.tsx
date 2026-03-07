@@ -1,38 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Source, Layer } from "react-map-gl/maplibre";
 import { useMap } from "@/lib/context/map-context";
-import type { SPCOutlookCollection } from "@/lib/types/weather";
 import { outlookRiskToHex } from "@/lib/utils";
 
-const POLL_INTERVAL = 900_000; // 15 min
-
 export function OutlookLayer() {
-  const { layers } = useMap();
-  const [outlookData, setOutlookData] = useState<SPCOutlookCollection | null>(
-    null
-  );
-
-  useEffect(() => {
-    if (!layers.outlooks) return;
-
-    const fetchOutlooks = async () => {
-      try {
-        const res = await fetch("/api/outlooks");
-        if (res.ok) {
-          const data = await res.json();
-          setOutlookData(data);
-        }
-      } catch (e) {
-        console.error("Failed to fetch outlooks:", e);
-      }
-    };
-
-    fetchOutlooks();
-    const interval = setInterval(fetchOutlooks, POLL_INTERVAL);
-    return () => clearInterval(interval);
-  }, [layers.outlooks]);
+  const { layers, outlookData } = useMap();
 
   if (!layers.outlooks || !outlookData || outlookData.features.length === 0)
     return null;

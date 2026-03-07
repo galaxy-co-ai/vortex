@@ -3,42 +3,68 @@
 import { useMemo } from "react";
 import { Source, Layer } from "react-map-gl/maplibre";
 import { useMap } from "@/lib/context/map-context";
-import { frameToTileUrl, frameTileUrlLive } from "@/lib/utils/timelapse";
+import {
+  frameToTileUrl,
+  reflectivityTileUrl,
+  velocityTileUrl,
+} from "@/lib/utils/timelapse";
+
+const IEM_ATTRIBUTION =
+  '<a href="https://mesonet.agron.iastate.edu/" target="_blank">Iowa Environmental Mesonet</a>';
 
 export function RadarLayer() {
-  const { layers, radarOpacity, timelapse, updateFreshness } = useMap();
+  const { layers, radarOpacity, timelapse } = useMap();
 
-  const tileUrl = useMemo(() => {
+  const reflectUrl = useMemo(() => {
     if (timelapse.enabled && timelapse.frames.length > 0) {
       return frameToTileUrl(timelapse.frames[timelapse.currentIndex]);
     }
-    updateFreshness("radar");
-    return frameTileUrlLive();
-  }, [
-    timelapse.enabled,
-    timelapse.frames,
-    timelapse.currentIndex,
-    updateFreshness,
-  ]);
+    return reflectivityTileUrl();
+  }, [timelapse.enabled, timelapse.frames, timelapse.currentIndex]);
 
-  if (!layers.radar) return null;
+  const velUrl = useMemo(() => velocityTileUrl(), []);
 
   return (
-    <Source
-      id="nexrad-radar"
-      type="raster"
-      tiles={[tileUrl]}
-      tileSize={256}
-      attribution='<a href="https://mesonet.agron.iastate.edu/" target="_blank">Iowa Environmental Mesonet</a>'
-    >
-      <Layer
-        id="nexrad-radar-layer"
-        type="raster"
-        paint={{
-          "raster-opacity": radarOpacity,
-          "raster-fade-duration": timelapse.playing ? 0 : 300,
-        }}
-      />
-    </Source>
+    <>
+      {/* Reflectivity — N0B high-res (~0.25km) */}
+      {layers.radar && (
+        <Source
+          id="nexrad-reflect"
+          type="raster"
+          tiles={[reflectUrl]}
+          tileSize={256}
+          attribution={IEM_ATTRIBUTION}
+        >
+          <Layer
+            id="nexrad-reflect-layer"
+            type="raster"
+            paint={{
+              "raster-opacity": radarOpacity,
+              "raster-fade-duration": timelapse.playing ? 0 : 300,
+            }}
+          />
+        </Source>
+      )}
+
+      {/* Storm-Relative Velocity — N0S */}
+      {layers.velocity && (
+        <Source
+          id="nexrad-velocity"
+          type="raster"
+          tiles={[velUrl]}
+          tileSize={256}
+          attribution={IEM_ATTRIBUTION}
+        >
+          <Layer
+            id="nexrad-velocity-layer"
+            type="raster"
+            paint={{
+              "raster-opacity": 0.6,
+              "raster-fade-duration": 300,
+            }}
+          />
+        </Source>
+      )}
+    </>
   );
 }

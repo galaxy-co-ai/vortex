@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, memo } from "react";
 import { useMap } from "@/lib/context/map-context";
 import { cn, severityToHex, formatRelativeTime } from "@/lib/utils";
 import type { NWSAlertFeature } from "@/lib/types/weather";
@@ -20,35 +20,27 @@ function matchesFilter(alert: NWSAlertFeature, filter: FilterType): boolean {
   if (filter === "all") return true;
   const e = alert.properties.event;
   switch (filter) {
-    case "tornado":
-      return e === "Tornado Warning";
-    case "severe":
-      return e === "Severe Thunderstorm Warning";
-    case "flood":
-      return e === "Flash Flood Warning" || e === "Flood Warning";
-    case "watch":
-      return e === "Tornado Watch" || e === "Severe Thunderstorm Watch";
-    default:
-      return true;
+    case "tornado": return e === "Tornado Warning";
+    case "severe": return e === "Severe Thunderstorm Warning";
+    case "flood": return e === "Flash Flood Warning" || e === "Flood Warning";
+    case "watch": return e === "Tornado Watch" || e === "Severe Thunderstorm Watch";
+    default: return true;
   }
 }
 
 export function LeftSidebar() {
   const {
-    alerts,
-    alertsLoading,
-    sidebarOpen,
-    setSelectedAlert,
-    flyTo,
-    layers,
-    toggleLayer,
-    radarOpacity,
-    setRadarOpacity,
+    alerts, alertsLoading, sidebarOpen,
+    setSelectedAlert, flyTo,
+    layers, toggleLayer, radarOpacity, setRadarOpacity,
   } = useMap();
   const [filter, setFilter] = useState<FilterType>("all");
   const [activeTab, setActiveTab] = useState<"alerts" | "layers">("alerts");
 
-  const filtered = alerts.filter((a) => matchesFilter(a, filter));
+  const filtered = useMemo(
+    () => alerts.filter((a) => matchesFilter(a, filter)),
+    [alerts, filter]
+  );
 
   const handleAlertClick = (alert: NWSAlertFeature) => {
     setSelectedAlert(alert);
@@ -67,7 +59,7 @@ export function LeftSidebar() {
   return (
     <div
       className={cn(
-        "flex flex-col border-r border-border bg-background/95 backdrop-blur-sm",
+        "flex flex-col border-r border-border bg-background",
         "transition-all duration-[var(--duration-normal)] ease-[var(--ease-standard)]",
         "overflow-hidden shrink-0",
         sidebarOpen ? "w-[var(--shell-sidebar-w)]" : "w-0"
@@ -111,8 +103,7 @@ export function LeftSidebar() {
                 key={key}
                 onClick={() => setFilter(key)}
                 className={cn(
-                  "px-2 py-1 rounded-md text-[10px] font-mono whitespace-nowrap",
-                  "transition-colors",
+                  "px-2 py-1 rounded-md text-[10px] font-mono whitespace-nowrap transition-colors",
                   filter === key
                     ? "bg-primary/15 text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -128,68 +119,19 @@ export function LeftSidebar() {
             {alertsLoading ? (
               <div className="space-y-2 p-2">
                 {[...Array(5)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-14 rounded-md bg-muted animate-pulse"
-                  />
+                  <div key={i} className="h-14 rounded-md bg-muted animate-pulse" />
                 ))}
               </div>
             ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-3">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    className="text-muted-foreground"
-                  >
-                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-                    <path d="m9 12 2 2 4-4" />
-                  </svg>
-                </div>
                 <p className="text-xs text-muted-foreground">
-                  {filter === "all"
-                    ? "No active severe weather alerts"
-                    : `No active ${filter} alerts`}
+                  {filter === "all" ? "No active severe weather alerts" : `No active ${filter} alerts`}
                 </p>
               </div>
             ) : (
               <div className="space-y-0.5">
                 {filtered.map((alert) => (
-                  <button
-                    key={alert.id}
-                    onClick={() => handleAlertClick(alert)}
-                    className={cn(
-                      "w-full text-left px-2.5 py-2 rounded-md",
-                      "hover:bg-muted/50 transition-colors duration-[var(--duration-fast)]",
-                      "group"
-                    )}
-                  >
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{
-                          backgroundColor: severityToHex(
-                            alert.properties.event
-                          ),
-                        }}
-                      />
-                      <span className="text-xs font-semibold truncate">
-                        {alert.properties.event}
-                      </span>
-                      <span className="ml-auto text-[10px] font-mono text-muted-foreground shrink-0">
-                        {formatRelativeTime(alert.properties.expires)}
-                      </span>
-                    </div>
-                    {alert.properties.headline && (
-                      <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2 pl-4">
-                        {alert.properties.headline}
-                      </p>
-                    )}
-                  </button>
+                  <AlertItem key={alert.id} alert={alert} onClick={handleAlertClick} />
                 ))}
               </div>
             )}
@@ -207,36 +149,50 @@ export function LeftSidebar() {
   );
 }
 
+const AlertItem = memo(function AlertItem({
+  alert,
+  onClick,
+}: {
+  alert: NWSAlertFeature;
+  onClick: (a: NWSAlertFeature) => void;
+}) {
+  return (
+    <button
+      onClick={() => onClick(alert)}
+      className="w-full text-left px-2.5 py-2 rounded-md hover:bg-muted/50 transition-colors"
+    >
+      <div className="flex items-center gap-2 mb-0.5">
+        <span
+          className="w-2 h-2 rounded-full shrink-0"
+          style={{ backgroundColor: severityToHex(alert.properties.event) }}
+        />
+        <span className="text-xs font-semibold truncate">
+          {alert.properties.event}
+        </span>
+        <span className="ml-auto text-[10px] font-mono text-muted-foreground shrink-0">
+          {formatRelativeTime(alert.properties.expires)}
+        </span>
+      </div>
+      {alert.properties.headline && (
+        <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2 pl-4">
+          {alert.properties.headline}
+        </p>
+      )}
+    </button>
+  );
+});
+
 const LAYER_ITEMS: {
   key: keyof LayerVisibility;
   label: string;
   description: string;
   color: string;
 }[] = [
-  {
-    key: "radar",
-    label: "NEXRAD Radar",
-    description: "Live reflectivity tiles",
-    color: "bg-radar-moderate",
-  },
-  {
-    key: "warnings",
-    label: "Warnings",
-    description: "NWS warning polygons",
-    color: "bg-severity-tornado",
-  },
-  {
-    key: "outlooks",
-    label: "SPC Outlooks",
-    description: "Day 1 convective outlook",
-    color: "bg-outlook-slgt",
-  },
-  {
-    key: "reports",
-    label: "Storm Reports",
-    description: "LSR markers today",
-    color: "bg-primary",
-  },
+  { key: "radar", label: "Reflectivity (N0B)", description: "High-res base reflectivity", color: "bg-radar-moderate" },
+  { key: "velocity", label: "Velocity (SRV)", description: "Storm-relative velocity", color: "bg-primary" },
+  { key: "warnings", label: "Warnings", description: "NWS warning polygons", color: "bg-severity-tornado" },
+  { key: "outlooks", label: "SPC Outlooks", description: "Day 1 convective outlook", color: "bg-outlook-slgt" },
+  { key: "reports", label: "Storm Reports", description: "LSR markers today", color: "bg-primary" },
 ];
 
 function LayerPanel({
@@ -268,17 +224,10 @@ function LayerPanel({
               : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
           )}
         >
-          <span
-            className={cn(
-              "w-3 h-3 rounded-sm shrink-0",
-              layers[key] ? color : "bg-muted"
-            )}
-          />
+          <span className={cn("w-3 h-3 rounded-sm shrink-0", layers[key] ? color : "bg-muted")} />
           <div className="flex-1 text-left min-w-0">
             <span className="text-xs font-medium block truncate">{label}</span>
-            <span className="text-[10px] text-muted-foreground">
-              {description}
-            </span>
+            <span className="text-[10px] text-muted-foreground">{description}</span>
           </div>
           <span
             className={cn(
@@ -323,9 +272,7 @@ function LayerPanel({
         <p className="text-[10px] font-mono text-muted-foreground tracking-wider uppercase mb-2">
           Reflectivity (dBZ)
         </p>
-        <div className="flex items-center gap-1">
-          <div className="flex-1 h-2 rounded-sm bg-gradient-to-r from-radar-light via-radar-moderate via-radar-heavy to-radar-extreme" />
-        </div>
+        <div className="h-2 rounded-sm bg-gradient-to-r from-radar-light via-radar-moderate via-radar-heavy to-radar-extreme" />
         <div className="flex justify-between mt-1">
           <span className="text-[9px] text-muted-foreground">20</span>
           <span className="text-[9px] text-muted-foreground">35</span>
