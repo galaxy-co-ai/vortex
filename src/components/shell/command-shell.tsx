@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useMemo } from "react";
 import { MapProvider, useMap } from "@/lib/context/map-context";
+import { useKeyboardShortcuts } from "@/lib/hooks/use-keyboard-shortcuts";
 import { TopBar } from "./top-bar";
 import { LeftSidebar } from "./left-sidebar";
 import { RightPanel } from "./right-panel";
@@ -12,15 +13,33 @@ import { ThreatBanner } from "./threat-banner";
 export function CommandShell() {
   return (
     <MapProvider>
-      <div className="h-dvh w-full flex flex-col overflow-hidden bg-background">
-        <TopBar />
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          <LeftSidebar />
-          <MapCenter />
-          <RightPanel />
-        </div>
-      </div>
+      <ShellLayout />
     </MapProvider>
+  );
+}
+
+function ShellLayout() {
+  const {
+    toggleLayer, toggleTimelapse, togglePlay,
+    setSidebarOpen, sidebarOpen, setSelectedAlert,
+  } = useMap();
+
+  const shortcutActions = useMemo(() => ({
+    toggleLayer, toggleTimelapse, togglePlay,
+    setSidebarOpen, sidebarOpen, setSelectedAlert,
+  }), [toggleLayer, toggleTimelapse, togglePlay, setSidebarOpen, sidebarOpen, setSelectedAlert]);
+
+  useKeyboardShortcuts(shortcutActions);
+
+  return (
+    <div className="h-dvh w-full flex flex-col overflow-hidden bg-background">
+      <TopBar />
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <LeftSidebar />
+        <MapCenter />
+        <RightPanel />
+      </div>
+    </div>
   );
 }
 
