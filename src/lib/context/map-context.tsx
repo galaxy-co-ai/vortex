@@ -16,6 +16,8 @@ import type {
   StormReportFeature,
   StormReportCollection,
   SPCOutlookCollection,
+  TornadoProbCollection,
+  MesoscaleDiscussionCollection,
 } from "@/lib/types/weather";
 import {
   DEFAULT_VIEW_STATE,
@@ -52,6 +54,8 @@ interface MapContextValue {
   alertStats: AlertStats;
   alertsLoading: boolean;
   outlookData: SPCOutlookCollection | null;
+  tornadoProbData: TornadoProbCollection | null;
+  mesoscaleData: MesoscaleDiscussionCollection | null;
   reportData: StormReportCollection | null;
 
   selectedAlert: NWSAlertFeature | null;
@@ -108,6 +112,8 @@ export function MapProvider({ children }: { children: ReactNode }) {
     tornadoWarnings: 0, severeWarnings: 0, watches: 0, floodWarnings: 0, total: 0,
   });
   const [outlookData, setOutlookData] = useState<SPCOutlookCollection | null>(null);
+  const [tornadoProbData, setTornadoProbData] = useState<TornadoProbCollection | null>(null);
+  const [mesoscaleData, setMesoscaleData] = useState<MesoscaleDiscussionCollection | null>(null);
   const [reportData, setReportData] = useState<StormReportCollection | null>(null);
 
   // Timelapse
@@ -151,6 +157,30 @@ export function MapProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    const fetchTornadoProb = async () => {
+      try {
+        const res = await fetch("/api/tornado-prob");
+        if (res.ok) {
+          const data = await res.json();
+          setTornadoProbData(data);
+        }
+      } catch (e) {
+        console.error("Failed to fetch tornado probability:", e);
+      }
+    };
+
+    const fetchMesoscale = async () => {
+      try {
+        const res = await fetch("/api/mesoscale");
+        if (res.ok) {
+          const data = await res.json();
+          setMesoscaleData(data);
+        }
+      } catch (e) {
+        console.error("Failed to fetch mesoscale discussions:", e);
+      }
+    };
+
     const fetchReports = async () => {
       try {
         const res = await fetch("/api/reports");
@@ -167,16 +197,22 @@ export function MapProvider({ children }: { children: ReactNode }) {
     // Initial fetch all
     fetchAlerts();
     fetchOutlooks();
+    fetchTornadoProb();
+    fetchMesoscale();
     fetchReports();
 
     // Staggered intervals
     const alertInterval = setInterval(fetchAlerts, 30_000);
     const outlookInterval = setInterval(fetchOutlooks, 900_000);
+    const torProbInterval = setInterval(fetchTornadoProb, 900_000);
+    const mcdInterval = setInterval(fetchMesoscale, 300_000);
     const reportInterval = setInterval(fetchReports, 300_000);
 
     return () => {
       clearInterval(alertInterval);
       clearInterval(outlookInterval);
+      clearInterval(torProbInterval);
+      clearInterval(mcdInterval);
       clearInterval(reportInterval);
     };
   }, []);
@@ -239,7 +275,7 @@ export function MapProvider({ children }: { children: ReactNode }) {
     () => ({
       viewState, setViewState, flyTo,
       layers, toggleLayer, radarOpacity, setRadarOpacity,
-      alerts, alertStats, alertsLoading, outlookData, reportData,
+      alerts, alertStats, alertsLoading, outlookData, tornadoProbData, mesoscaleData, reportData,
       selectedAlert, setSelectedAlert, selectedReport, setSelectedReport,
       sidebarOpen, setSidebarOpen,
       timelapse, toggleTimelapse, togglePlay, setFrame, setTimelapseSpeed,
@@ -248,7 +284,7 @@ export function MapProvider({ children }: { children: ReactNode }) {
     [
       viewState, flyTo,
       layers, toggleLayer, radarOpacity,
-      alerts, alertStats, alertsLoading, outlookData, reportData,
+      alerts, alertStats, alertsLoading, outlookData, tornadoProbData, mesoscaleData, reportData,
       selectedAlert, selectedReport,
       sidebarOpen,
       timelapse, toggleTimelapse, togglePlay, setFrame, setTimelapseSpeed,

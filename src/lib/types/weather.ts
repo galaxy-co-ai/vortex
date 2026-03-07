@@ -78,3 +78,40 @@ export interface SPCOutlookCollection {
   type: "FeatureCollection";
   features: SPCOutlookFeature[];
 }
+
+// Tornado probability (SPC Day 1 Layer 3)
+export interface TornadoProbProperties {
+  probability: number;
+  description: string;
+  label: string;
+  label2: string;
+}
+
+export interface TornadoProbFeature {
+  type: "Feature";
+  properties: TornadoProbProperties;
+  geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon;
+}
+
+export interface TornadoProbCollection {
+  type: "FeatureCollection";
+  features: TornadoProbFeature[];
+}
+
+// Mesoscale Discussions (SPC MCD)
+export interface MesoscaleDiscussionProperties {
+  name: string;
+  info: string;
+  url: string;
+}
+
+export interface MesoscaleDiscussionFeature {
+  type: "Feature";
+  properties: MesoscaleDiscussionProperties;
+  geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon;
+}
+
+export interface MesoscaleDiscussionCollection {
+  type: "FeatureCollection";
+  features: MesoscaleDiscussionFeature[];
+}

@@ -11,6 +11,8 @@ export interface LayerVisibility {
   velocity: boolean;
   warnings: boolean;
   outlooks: boolean;
+  tornadoProb: boolean;
+  mesoscale: boolean;
   reports: boolean;
 }
 
@@ -42,6 +44,8 @@ export const DEFAULT_LAYER_VISIBILITY: LayerVisibility = {
   velocity: false,
   warnings: true,
   outlooks: true,
+  tornadoProb: false,
+  mesoscale: true,
   reports: true,
 };
 

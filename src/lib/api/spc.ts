@@ -1,30 +1,31 @@
-import type { SPCOutlookCollection } from "@/lib/types/weather";
+import type { SPCOutlookCollection, TornadoProbCollection, MesoscaleDiscussionCollection } from "@/lib/types/weather";
 import { dnToRiskLevel, riskLabel } from "@/lib/utils";
 
-const SPC_BASE =
+const SPC_OUTLOOKS =
   "https://mapservices.weather.noaa.gov/vector/rest/services/outlooks/SPC_wx_outlks/MapServer";
+const SPC_MCD =
+  "https://mapservices.weather.noaa.gov/vector/rest/services/outlooks/spc_mesoscale_discussion/MapServer";
 
-// Layer 1 = Day 1 Categorical Outlook (Layer 0 is deprecated/empty)
 const DAY1_CATEGORICAL = 1;
+const DAY1_TORNADO_PROB = 3;
 
-export async function fetchDay1Outlook(): Promise<SPCOutlookCollection> {
-  const url = new URL(`${SPC_BASE}/${DAY1_CATEGORICAL}/query`);
+async function querySPC(layerUrl: string, revalidate: number) {
+  const url = new URL(layerUrl);
   url.searchParams.set("where", "1=1");
   url.searchParams.set("outFields", "*");
   url.searchParams.set("f", "geojson");
   url.searchParams.set("returnGeometry", "true");
 
-  const res = await fetch(url.toString(), {
-    next: { revalidate: 900 }, // 15 min
-  });
-
+  const res = await fetch(url.toString(), { next: { revalidate } });
   if (!res.ok) {
     throw new Error(`SPC MapServer error: ${res.status} ${res.statusText}`);
   }
+  return res.json();
+}
 
-  const data = await res.json();
+export async function fetchDay1Outlook(): Promise<SPCOutlookCollection> {
+  const data = await querySPC(`${SPC_OUTLOOKS}/${DAY1_CATEGORICAL}/query`, 900);
 
-  // Map dn values to risk levels
   const features = (data.features || []).map(
     (f: { properties: { dn: number }; geometry: GeoJSON.Geometry }) => ({
       ...f,
@@ -36,8 +37,39 @@ export async function fetchDay1Outlook(): Promise<SPCOutlookCollection> {
     })
   );
 
-  return {
-    type: "FeatureCollection",
-    features,
-  };
+  return { type: "FeatureCollection", features };
+}
+
+export async function fetchTornadoProbability(): Promise<TornadoProbCollection> {
+  const data = await querySPC(`${SPC_OUTLOOKS}/${DAY1_TORNADO_PROB}/query`, 900);
+
+  const features = (data.features || []).map(
+    (f: { properties: { label: string; label2: string }; geometry: GeoJSON.Geometry }) => ({
+      ...f,
+      properties: {
+        ...f.properties,
+        probability: parseFloat(f.properties.label) * 100,
+        description: f.properties.label2,
+      },
+    })
+  );
+
+  return { type: "FeatureCollection", features };
+}
+
+export async function fetchMesoscaleDiscussions(): Promise<MesoscaleDiscussionCollection> {
+  const data = await querySPC(`${SPC_MCD}/0/query`, 300);
+
+  const features = (data.features || []).map(
+    (f: { properties: { name: string; folderpath: string; popupinfo: string }; geometry: GeoJSON.Geometry }) => ({
+      ...f,
+      properties: {
+        name: f.properties.name,
+        info: f.properties.folderpath,
+        url: f.properties.popupinfo,
+      },
+    })
+  );
+
+  return { type: "FeatureCollection", features };
 }

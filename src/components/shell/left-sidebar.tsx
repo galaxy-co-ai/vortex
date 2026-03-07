@@ -192,6 +192,8 @@ const LAYER_ITEMS: {
   { key: "velocity", label: "Velocity (SRV)", description: "Storm-relative velocity", color: "bg-primary" },
   { key: "warnings", label: "Warnings", description: "NWS warning polygons", color: "bg-severity-tornado" },
   { key: "outlooks", label: "SPC Outlooks", description: "Day 1 convective outlook", color: "bg-outlook-slgt" },
+  { key: "tornadoProb", label: "Tornado Prob", description: "Day 1 tornado probability", color: "bg-severity-tornado" },
+  { key: "mesoscale", label: "Mesoscale Disc.", description: "SPC mesoscale discussions", color: "bg-primary" },
   { key: "reports", label: "Storm Reports", description: "LSR markers today", color: "bg-primary" },
 ];
 
